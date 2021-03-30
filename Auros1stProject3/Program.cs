@@ -108,9 +108,20 @@ namespace Auros1stProject3
             // 2021.03.30 이지원.
             //
             #region scattering matrix 를 계산한다.
-            Complex[,,] S = new Complex[LenData, 2, 2];   
-            Complex[,,] I = new Complex[LenData, 2, 2];   // interface matrix.
-            Complex[,,] L = new Complex[LenData, 2, 2];   // layer matrix.
+            Complex[,,] Ip = new Complex[LenData, 2, 2];   // interface matrixs.
+            Complex[,,] Is = new Complex[LenData, 2, 2];
+            Complex[,,] L = new Complex[LenData, 2, 2];   // layer matrixs.
+
+            // p, s 편광에 대한 scattering matrix 의 각 요소 선언.
+            Complex[] S00p = new Complex[LenData],
+                      S01p = new Complex[LenData],
+                      S10p = new Complex[LenData],
+                      S11p = new Complex[LenData],
+
+                      S00s = new Complex[LenData],
+                      S01s = new Complex[LenData],
+                      S10s = new Complex[LenData],
+                      S11s = new Complex[LenData];
 
 
             // degree, radian 변환 인라인 함수 정의.
@@ -127,80 +138,68 @@ namespace Auros1stProject3
                       ts = new Complex[LenData];
 
             // 박막 두께 초기화.
-            double SiO2_thickness   = 20.0,
-                   SiN_thickness    = 30.0;
+            const double SiO2_thickness   = 20.0,
+                         SiN_thickness    = 30.0;
 
             const int LastLayer = 100;      // 박막 층수.
             int LayerNum = LastLayer + 1;   // 박막의 층수. (1 : Si 기판)
             // 층 구조 : air -> SiO2 -> SiN -> ... -> SiO2 -> SiN -> Si
             for (int layer = 0; layer < LayerNum; layer++)
             {
-                // layer 에 따른 프레넬 반사, 투과계수를 구한다.
-                switch (layer)
-                {
-                    case 0:
-                        {
-                            #region air -> SiO2 일 때 프레넬 반사계수, 투과계수를 구한다.
-                            // 프레넬 반사계수, 투과계수를 구한다.
-                            for (int i = 0; i < LenData; i++)
-                            {
-                                // 파장에 대한 물질의 복소굴절률을 구한다.
-                                Complex N_SiO2 = new Complex(n_SiO2[i], -k_SiO2[i]);
+                Complex Sintheta_j  = new Complex(0, 0);
+                Complex Costheta_j  = new Complex(0, 0);
+                Complex Sintheta_k  = new Complex(0, 0);
+                Complex theta_k     = new Complex(0, 0);
+                Complex Costheta_k  = new Complex(0, 0);
 
-                                // air, SiO2 경계면에서의 굴절각을 구한다. (스넬의 법칙)
-                                Complex Sintheta_j = new Complex(Sin(AOI_air), 0);
-                                Complex Costheta_j = new Complex(Cos(AOI_air), 0);
-                                Complex Sintheta_k = (N_air / N_SiO2) * Sintheta_j;
-                                Complex theta_k = Complex.Asin(Sintheta_k);
-                                // air, SiO2 경계면에서의 굴절각.
-                                Complex Costheta_k = Complex.Cos(theta_k);
-
-                                // air, SiO2 경계면에서의 반사계수를 구한다.
-                                rp[i] = ((N_SiO2 * Costheta_j) - (N_air * Costheta_k)) /
-                                               ((N_SiO2 * Costheta_j) + (N_air * Costheta_k));
-
-                                rs[i] = ((N_air * Costheta_j) - (N_SiO2 * Costheta_k)) /
-                                               ((N_air * Costheta_j) + (N_SiO2 * Costheta_k));
-
-                                // air, SiO2 경계면에서의 투과계수를 구한다.
-                                tp[i] = (N_air * Costheta_j * 2.0) /
-                                               ((N_SiO2 * Costheta_j) + (N_air * Costheta_k));
-
-                                ts[i] = (N_air * Costheta_j * 2.0) /
-                                               ((N_air * Costheta_j) + (N_SiO2 * Costheta_k));
-                            }
-                            #endregion
-                        }
-                        break;
-                    
-                    case LastLayer:
-                        {
-                            #region SiN -> Si
-
-                            #endregion
-                        }
-                        break;
-
-                    default:
-                        {
-                            #region SiO2 -> SiN
-                            if (layer % 2 != 0)
-                            {
-
-                            }
-                            #endregion
-                            #region SiN-> SiO2
-                            else
-                            {
-
-                            }
-                            #endregion
-                        }
-                        break;
-                }
-                
+                Complex PhaseThickness = new Complex(0, 0);
 
             }
+
+            #region 총 반사계수를 계산한다.
+
+            Complex[] Rp = new Complex[LenData],
+                          Rs = new Complex[LenData];
+
+            for (int i = 0; i < LenData; i++)
+            {
+                Rp[i] = S10p[i] / S00p[i];
+
+                Rs[i] = S10s[i] / S00s[i];
+            }
+
+            #endregion
+
+            #region alpha, beta 를 계산한다.
+
+            // alpha, beta 이론값을 담을 배열 선언.
+            double[] alpha_cal = new double[LenData],
+                     beta_cal = new double[LenData];
+
+            // Polarizer 오프셋 각.
+            double polarizerAngle = degree2radian(45.0);
+
+            for (int i = 0; i < LenData; i++)
+            {
+                // 총 반사계수비. (복소반사계수비)
+                Complex rho = Rp[i] / Rs[i];
+
+                // Psi, Delta.
+                double Psi = Atan(rho.Magnitude);
+                double Delta = rho.Phase;
+
+
+                alpha_cal[i] = (Pow(Tan(Psi), 2.0) - Pow(Tan(polarizerAngle), 2.0)) /
+                                       (Pow(Tan(Psi), 2.0) + Pow(Tan(polarizerAngle), 2.0));
+
+                beta_cal[i] = (2.0 * Tan(Psi) * Cos(Delta) * Tan(polarizerAngle)) /
+                                       (Pow(Tan(Psi), 2.0) + Pow(Tan(polarizerAngle), 2.0));
+            }
+            #endregion
+
+            #endregion
+
+            #region 파일 쓰기.
 
             #endregion
         }
